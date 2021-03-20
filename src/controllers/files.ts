@@ -1,16 +1,10 @@
 import express from 'express';
-import stream from 'stream'
 import sharp from 'sharp';
 import { uploadToStore } from '../utils'
+import { FileStreamToUpload } from '../common/types'
 
-interface FileStreamToUpload {
-  stream: stream,
-  fileName: string,
-  fileExtension: string,
-  contentType: string
-}
-
-const EXTENSIONS = ['txt', 'png']
+const AVAILABLE_EXTENSIONS = process.env.AVAILABLE_EXTENSIONS?.split(',') || []
+const RESOLUTIONS = process.env.RESOLUTIONS?.split(',') || []
 
 export async function uploadFile (req: express.Request, res: express.Response): Promise<any> {
   let contentType = req.get('Content-Type') || ''
@@ -26,13 +20,14 @@ export async function uploadFile (req: express.Request, res: express.Response): 
     res.end('Invalid file name');
   }
 
-  if(!EXTENSIONS.includes(original_file_name_splitted[1])) {
+  if(!AVAILABLE_EXTENSIONS.includes(original_file_name_splitted[1])) {
     res.writeHead(400, {"content-type":"text/html"})
-    res.end('Invalid file extension');
+    res.end(`Invalid file extension: ${original_file_name_splitted[1]}, available extensions are: ${AVAILABLE_EXTENSIONS}`);
   }
 
   let fileStreamToUpload : FileStreamToUpload = {
     stream: req,
+    fileNameWithExtension: req.params.file_name,
     fileName: original_file_name_splitted[0],
     fileExtension: original_file_name_splitted[1],
     contentType: contentType
@@ -41,8 +36,7 @@ export async function uploadFile (req: express.Request, res: express.Response): 
   if (contentType && contentType.includes('image')) {
     _processImage(fileStreamToUpload)
   } else {
-
-    uploadToStore(req, req.params['file_name'])
+    uploadToStore(fileStreamToUpload.stream, fileStreamToUpload.fileNameWithExtension)
       .then((response) => {
         console.log(response);
       }).catch((err) => {
@@ -62,9 +56,9 @@ async function _processImage(imageStream: FileStreamToUpload) {
   imageStream.stream.pipe(transform)
 
   let promises = 
-    [300, 1024].map((size: number) => {
+    RESOLUTIONS.map((size: string) => {
       let uploadStream = transform.clone()
-          .resize(size)
+          .resize(parseInt(size))
           .png()
 
       let file_name_to_upload = imageStream.fileName.concat('_', size.toString(), '.', imageStream.fileExtension)
