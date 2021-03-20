@@ -1,19 +1,17 @@
 import express from 'express';
-import sharp from 'sharp';
-import { uploadToStore } from '../utils'
+import { processImage, processFile } from '../utils'
 import { FileStreamToUpload } from '../common/types'
 import { Readable, PassThrough } from 'stream'
 
 const AVAILABLE_EXTENSIONS = process.env.AVAILABLE_EXTENSIONS?.split(',') || []
-const RESOLUTIONS = process.env.RESOLUTIONS?.split(',') || []
 const MAX_SIZE = process.env.MAX_SIZE || 1000
 
 export async function uploadFile (req: express.Request, res: express.Response): Promise<any> {
   let contentType = req.get('Content-Type') || ''
   let original_file_name_splitted = req.params.file_name.split('.')
   let fileBytesRead = 0
-  const sizeStream = new PassThrough()
-  const fileStream = new PassThrough()
+  let sizeStream = new PassThrough()
+  let fileStream = new PassThrough()
 
   if(!contentType) {
     _responseWithError(new Error('Invalid Content-Type'), res)
@@ -58,7 +56,7 @@ export async function uploadFile (req: express.Request, res: express.Response): 
   }
 
   let uploadPromise =
-    fileStreamToUpload.contentType.includes('image') ? _processImage(fileStreamToUpload) : _processFile(fileStreamToUpload)
+    fileStreamToUpload.contentType.includes('image') ? processImage(fileStreamToUpload) : processFile(fileStreamToUpload)
 
   uploadPromise.then((file) => {
     res.writeHead(200, {"content-type":"text/html"})
@@ -66,29 +64,6 @@ export async function uploadFile (req: express.Request, res: express.Response): 
   }).catch( err => {
     _responseWithError(new Error(`Error processing file: ${err.message}`), res)
   })
-}
-
-function _processImage(imageStream: FileStreamToUpload): Promise<any> {
-  let transform = sharp()
-
-  imageStream.stream.pipe(transform)
-
-  let promises = 
-    RESOLUTIONS.map((size: string) => {
-      let uploadStream = transform.clone()
-          .resize(parseInt(size))
-          .png()
-
-      let file_name_to_upload = imageStream.fileName.concat('_', size.toString(), '.', imageStream.fileExtension)
-
-      return uploadToStore(uploadStream, file_name_to_upload)
-    })
-
-  return Promise.all(promises)
-}
-
-function _processFile(fileStream: FileStreamToUpload): Promise<any> {
-  return uploadToStore(fileStream.stream, fileStream.fileNameWithExtension)
 }
 
 function _responseWithError(error: Error, res: express.Response) {
