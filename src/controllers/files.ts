@@ -14,18 +14,18 @@ export async function uploadFile (req: express.Request, res: express.Response): 
   let fileBytesRead = 0
 
   if(!contentType) {
-    res.writeHead(400, {"content-type":"text/html"})
-    res.end('Invalid Content-Type');
+    _responseWithError(new Error('Invalid Content-Type'), res)
   }
 
   if(!original_file_name_splitted[0]) {
-    res.writeHead(400, {"content-type":"text/html"})
-    res.end('Invalid file name');
+    _responseWithError(new Error('Invalid file name'), res)
   }
 
   if(!AVAILABLE_EXTENSIONS.includes(original_file_name_splitted[1])) {
-    res.writeHead(400, {"content-type":"text/html"})
-    res.end(`Invalid file extension: ${original_file_name_splitted[1]}, available extensions are: ${AVAILABLE_EXTENSIONS}`);
+    _responseWithError(
+      new Error(`Invalid file extension: ${original_file_name_splitted[1]}, available extensions are: ${AVAILABLE_EXTENSIONS}`),
+      res
+    )
   }
 
   let fileStreamToUpload : FileStreamToUpload = {
@@ -42,10 +42,13 @@ export async function uploadFile (req: express.Request, res: express.Response): 
     console.log(fileBytesRead);
 
     if (fileBytesRead > 900000) {
-      console.log(`Exceeded file limit ${MAX_SIZE}, on chunk size: ${fileBytesRead}`)
-
+      this.emit('error', new Error(`Exceeded file limit ${MAX_SIZE}, on chunk size: ${fileBytesRead}`))
       this.destroy()
     }
+  })
+
+  fileStreamToUpload.stream.on('error', (err: Error) => {
+    _responseWithError(err, res)
   })
 
   let uploadPromise =
@@ -55,8 +58,7 @@ export async function uploadFile (req: express.Request, res: express.Response): 
     res.writeHead(200, {"content-type":"text/html"})
     res.end(`Finished processing file: ${file}`);
   }).catch( err => {
-    res.writeHead(200, {"content-type":"text/html"})
-    res.end(`Error processing file: ${err}`);
+    _responseWithError(new Error(`Error processing file: ${err.message}`), res)
   })
 }
 
@@ -82,3 +84,11 @@ function _processImage(imageStream: FileStreamToUpload): Promise<any> {
 function _processFile(fileStream: FileStreamToUpload): Promise<any> {
   return uploadToStore(fileStream.stream, fileStream.fileNameWithExtension)
 }
+
+function _responseWithError(error: Error, res: express.Response) {
+  console.log(error.message)
+
+  res.writeHead(400, {"content-type":"text/html"})
+  res.end(`Error processing file: ${error.message}`);
+}
+

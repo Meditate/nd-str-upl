@@ -1,7 +1,7 @@
-import stream from 'stream'
+import { Readable } from 'stream'
 
 export interface FileStreamToUpload {
-  stream: stream,
+  stream: Readable,
   fileNameWithExtension: string,
   fileName: string,
   fileExtension: string,
