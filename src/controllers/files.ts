@@ -2,13 +2,16 @@ import express from 'express';
 import sharp from 'sharp';
 import { uploadToStore } from '../utils'
 import { FileStreamToUpload } from '../common/types'
+import { Readable } from 'stream'
 
 const AVAILABLE_EXTENSIONS = process.env.AVAILABLE_EXTENSIONS?.split(',') || []
 const RESOLUTIONS = process.env.RESOLUTIONS?.split(',') || []
+const MAX_SIZE = process.env.MAX_SIZE || 1000
 
 export async function uploadFile (req: express.Request, res: express.Response): Promise<any> {
   let contentType = req.get('Content-Type') || ''
   let original_file_name_splitted = req.params.file_name.split('.')
+  let fileBytesRead = 0
 
   if(!contentType) {
     res.writeHead(400, {"content-type":"text/html"})
@@ -33,27 +36,34 @@ export async function uploadFile (req: express.Request, res: express.Response): 
     contentType: contentType
   }
 
-  if (contentType && contentType.includes('image')) {
-    _processImage(fileStreamToUpload)
-  } else {
-    uploadToStore(fileStreamToUpload.stream, fileStreamToUpload.fileNameWithExtension)
-      .then((response) => {
-        console.log(response);
-      }).catch((err) => {
-        console.log(err)
-      })
-  }
+  fileStreamToUpload.stream.on('data', function(this: Readable, chunk: any) {
+    fileBytesRead += chunk.length
 
-  req.on('end', () => {
+    console.log(fileBytesRead);
+
+    if (fileBytesRead > 900000) {
+      console.log(`Exceeded file limit ${MAX_SIZE}, on chunk size: ${fileBytesRead}`)
+
+      this.destroy()
+    }
+  })
+
+  let uploadPromise =
+    fileStreamToUpload.contentType.includes('image') ? _processImage(fileStreamToUpload) : _processFile(fileStreamToUpload)
+
+  uploadPromise.then((file) => {
     res.writeHead(200, {"content-type":"text/html"})
-    res.end('Finished processing file');
+    res.end(`Finished processing file: ${file}`);
+  }).catch( err => {
+    res.writeHead(200, {"content-type":"text/html"})
+    res.end(`Error processing file: ${err}`);
   })
 }
 
-async function _processImage(imageStream: FileStreamToUpload) {
+function _processImage(imageStream: FileStreamToUpload): Promise<any> {
   let transform = sharp()
 
-  imageStream.stream.pipe(transform)
+  imageStream.stream.pipe(transform);
 
   let promises = 
     RESOLUTIONS.map((size: string) => {
@@ -66,9 +76,9 @@ async function _processImage(imageStream: FileStreamToUpload) {
       return uploadToStore(uploadStream, file_name_to_upload)
     })
 
-  Promise.all(promises).then( values => {
-    console.log(values);
-  }).catch( error => {
-    console.log(error)
-  })
+  return Promise.all(promises)
+}
+
+function _processFile(fileStream: FileStreamToUpload): Promise<any> {
+  return uploadToStore(fileStream.stream, fileStream.fileNameWithExtension)
 }
