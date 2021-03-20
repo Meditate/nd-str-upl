@@ -2,7 +2,7 @@ import express from 'express';
 import sharp from 'sharp';
 import { uploadToStore } from '../utils'
 import { FileStreamToUpload } from '../common/types'
-import { Readable } from 'stream'
+import { Readable, PassThrough } from 'stream'
 
 const AVAILABLE_EXTENSIONS = process.env.AVAILABLE_EXTENSIONS?.split(',') || []
 const RESOLUTIONS = process.env.RESOLUTIONS?.split(',') || []
@@ -12,6 +12,8 @@ export async function uploadFile (req: express.Request, res: express.Response): 
   let contentType = req.get('Content-Type') || ''
   let original_file_name_splitted = req.params.file_name.split('.')
   let fileBytesRead = 0
+  const sizeStream = new PassThrough()
+  const fileStream = new PassThrough()
 
   if(!contentType) {
     _responseWithError(new Error('Invalid Content-Type'), res)
@@ -28,28 +30,32 @@ export async function uploadFile (req: express.Request, res: express.Response): 
     )
   }
 
+  sizeStream.on('data', function(this: Readable, chunk: any) {
+    fileBytesRead += chunk.length
+
+    console.log(fileBytesRead);
+
+    if (fileBytesRead > MAX_SIZE) {
+      this.emit('error', new Error(`Exceeded file limit ${MAX_SIZE}, on chunk size: ${fileBytesRead}`))
+
+      req.destroy()
+    }
+  })
+
+  sizeStream.on('error', (err: Error) => {
+    _responseWithError(err, res)
+  })
+
+  req.pipe(sizeStream)
+  req.pipe(fileStream)
+
   let fileStreamToUpload : FileStreamToUpload = {
-    stream: req,
+    stream: fileStream,
     fileNameWithExtension: req.params.file_name,
     fileName: original_file_name_splitted[0],
     fileExtension: original_file_name_splitted[1],
     contentType: contentType
   }
-
-  fileStreamToUpload.stream.on('data', function(this: Readable, chunk: any) {
-    fileBytesRead += chunk.length
-
-    console.log(fileBytesRead);
-
-    if (fileBytesRead > 900000) {
-      this.emit('error', new Error(`Exceeded file limit ${MAX_SIZE}, on chunk size: ${fileBytesRead}`))
-      this.destroy()
-    }
-  })
-
-  fileStreamToUpload.stream.on('error', (err: Error) => {
-    _responseWithError(err, res)
-  })
 
   let uploadPromise =
     fileStreamToUpload.contentType.includes('image') ? _processImage(fileStreamToUpload) : _processFile(fileStreamToUpload)
@@ -65,7 +71,7 @@ export async function uploadFile (req: express.Request, res: express.Response): 
 function _processImage(imageStream: FileStreamToUpload): Promise<any> {
   let transform = sharp()
 
-  imageStream.stream.pipe(transform);
+  imageStream.stream.pipe(transform)
 
   let promises = 
     RESOLUTIONS.map((size: string) => {
