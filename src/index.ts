@@ -1,9 +1,7 @@
 import express from 'express';
-import { uploadFile } from './controllers/files'
 import AWS from 'aws-sdk';
-import dotenv from 'dotenv'
-
-dotenv.config()
+import './env'
+import { uploadFile } from './controllers/files'
 
 AWS.config.update({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
