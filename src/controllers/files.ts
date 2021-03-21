@@ -8,21 +8,22 @@ export async function uploadFile (req: express.Request, res: express.Response): 
   let original_file_name_splitted = req.params.file_name.split('.')
 
   if(!contentType) {
-    _responseWithError(new Error('Invalid Content-Type'), res)
+    _respondWith(400, 'Invalid Content-Type', res)
   }
 
   if(!original_file_name_splitted[0]) {
-    _responseWithError(new Error('Invalid file name'), res)
+    _respondWith(400, 'Invalid file name', res)
   }
 
   if(!AVAILABLE_EXTENSIONS.includes(original_file_name_splitted[1])) {
-    _responseWithError(
-      new Error(`Invalid file extension: ${original_file_name_splitted[1]}, available extensions are: ${AVAILABLE_EXTENSIONS}`),
+    _respondWith(
+      400,
+      `Invalid file extension: ${original_file_name_splitted[1]}, available extensions are: ${AVAILABLE_EXTENSIONS}`,
       res
     )
   }
 
-  let sizeStream = createSizeStream(req, (err: Error) => _responseWithError(err, res))
+  let sizeStream = createSizeStream(req, (err: Error) => _respondWith(400, err.message, res))
   let fileStreamObject = createFileStream(req)
 
   req.pipe(sizeStream)
@@ -32,17 +33,30 @@ export async function uploadFile (req: express.Request, res: express.Response): 
     fileStreamObject.contentType.includes('image') ? processImage(fileStreamObject) : processFile(fileStreamObject)
 
   uploadPromise.then((file) => {
-    res.writeHead(200, {"content-type":"text/html"})
-    res.end(`Finished processing file: ${file}`);
+    _respondWith(200, `Finished processing file: ${file}`, res)
   }).catch( err => {
-    _responseWithError(new Error(`Error processing file: ${err.message}`), res)
+    _respondWith(400, err.message, res)
   })
 }
 
-function _responseWithError(error: Error, res: express.Response) {
-  console.log(error.message)
+function _respondWith(status: number, message: string, res: express.Response) {
+  res.writeHead(status, {"content-type":"application/json"})
 
-  res.writeHead(400, {"content-type":"text/html"})
-  res.end(`Error processing file: ${error.message}`);
+  let response;
+
+  if(status == 400) {
+    response = {
+      data: '',
+      error: message
+    }
+  } else {
+    response = {
+      data: message,
+      error: ''
+    }
+  }
+
+  res.end(
+    JSON.stringify(response)
+  );
 }
-
