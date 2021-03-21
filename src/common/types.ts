@@ -7,3 +7,14 @@ export interface FileStreamToUpload {
   fileExtension: string,
   contentType: string
 }
+
+export interface ResponseMock {
+  writeHead: any,
+  end: any
+}
+
+export interface RequestMock {
+  get: any,
+  params: any,
+  pipe: any
+}

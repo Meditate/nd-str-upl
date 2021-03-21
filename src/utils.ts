@@ -3,10 +3,8 @@ import express from 'express';
 import { PassThrough, Readable } from 'stream';
 import AWS from 'aws-sdk';
 import { FileStreamToUpload } from './common/types'
+import { RESOLUTIONS, MAX_SIZE } from './common/constants';
 import sharp from 'sharp';
-
-const RESOLUTIONS = process.env.RESOLUTIONS?.split(',') || []
-const MAX_SIZE = process.env.MAX_SIZE || 1000
 
 var s3 = new AWS.S3(
   {

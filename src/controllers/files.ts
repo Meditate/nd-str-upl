@@ -1,7 +1,6 @@
 import express from 'express';
 import { processImage, processFile, createSizeStream, createFileStream } from '../utils'
-
-const AVAILABLE_EXTENSIONS = process.env.AVAILABLE_EXTENSIONS?.split(',') || []
+import { AVAILABLE_EXTENSIONS } from '../common/constants'
 
 export async function uploadFile (req: express.Request, res: express.Response): Promise<any> {
   let contentType = req.get('Content-Type') || ''
