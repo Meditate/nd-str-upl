@@ -1,17 +1,15 @@
 import express from 'express';
-import { processImage, processFile } from '../utils'
+import { processImage, processFile, createSizeStream } from '../utils'
 import { FileStreamToUpload } from '../common/types'
-import { Readable, PassThrough } from 'stream'
+import { PassThrough } from 'stream'
 
 const AVAILABLE_EXTENSIONS = process.env.AVAILABLE_EXTENSIONS?.split(',') || []
-const MAX_SIZE = process.env.MAX_SIZE || 1000
 
 export async function uploadFile (req: express.Request, res: express.Response): Promise<any> {
   let contentType = req.get('Content-Type') || ''
   let original_file_name_splitted = req.params.file_name.split('.')
-  let fileBytesRead = 0
-  let sizeStream = new PassThrough()
   let fileStream = new PassThrough()
+  let sizeStream = createSizeStream(req, (err: Error) => _responseWithError(err, res))
 
   if(!contentType) {
     _responseWithError(new Error('Invalid Content-Type'), res)
@@ -27,22 +25,6 @@ export async function uploadFile (req: express.Request, res: express.Response): 
       res
     )
   }
-
-  sizeStream.on('data', function(this: Readable, chunk: any) {
-    fileBytesRead += chunk.length
-
-    console.log(fileBytesRead);
-
-    if (fileBytesRead > MAX_SIZE) {
-      this.emit('error', new Error(`Exceeded file limit ${MAX_SIZE}, on chunk size: ${fileBytesRead}`))
-
-      req.destroy()
-    }
-  })
-
-  sizeStream.on('error', (err: Error) => {
-    _responseWithError(err, res)
-  })
 
   req.pipe(sizeStream)
   req.pipe(fileStream)

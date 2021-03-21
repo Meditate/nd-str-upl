@@ -1,10 +1,11 @@
-import express from 'express'
 import stream from 'stream';
+import { PassThrough, Readable } from 'stream';
 import AWS from 'aws-sdk';
 import { FileStreamToUpload } from './common/types'
 import sharp from 'sharp';
 
 const RESOLUTIONS = process.env.RESOLUTIONS?.split(',') || []
+const MAX_SIZE = process.env.MAX_SIZE || 1000
 
 var s3 = new AWS.S3(
   {
@@ -59,4 +60,27 @@ export function uploadToStore(fileStream: stream, fileName: String): Promise<voi
       }
     )
   })
+}
+
+export function createSizeStream(fileStream: Readable, cb: Function): PassThrough {
+  let fileBytesRead = 0
+  let sizeStream = new PassThrough()
+
+  sizeStream.on('data', function(this: Readable, chunk: any) {
+    fileBytesRead += chunk.length
+
+    console.log(`Bytes read from stream: ${fileBytesRead}`);
+
+    if (fileBytesRead > MAX_SIZE) {
+      this.emit('error', new Error(`Exceeded file limit ${MAX_SIZE}, on chunk size: ${fileBytesRead}`))
+
+      fileStream.destroy()
+    }
+  })
+
+  sizeStream.on('error', (err: Error) => {
+    cb(err)
+  })
+
+  return sizeStream
 }
