@@ -1,15 +1,11 @@
 import express from 'express';
-import { processImage, processFile, createSizeStream } from '../utils'
-import { FileStreamToUpload } from '../common/types'
-import { PassThrough } from 'stream'
+import { processImage, processFile, createSizeStream, createFileStream } from '../utils'
 
 const AVAILABLE_EXTENSIONS = process.env.AVAILABLE_EXTENSIONS?.split(',') || []
 
 export async function uploadFile (req: express.Request, res: express.Response): Promise<any> {
   let contentType = req.get('Content-Type') || ''
   let original_file_name_splitted = req.params.file_name.split('.')
-  let fileStream = new PassThrough()
-  let sizeStream = createSizeStream(req, (err: Error) => _responseWithError(err, res))
 
   if(!contentType) {
     _responseWithError(new Error('Invalid Content-Type'), res)
@@ -26,19 +22,14 @@ export async function uploadFile (req: express.Request, res: express.Response): 
     )
   }
 
-  req.pipe(sizeStream)
-  req.pipe(fileStream)
+  let sizeStream = createSizeStream(req, (err: Error) => _responseWithError(err, res))
+  let fileStreamObject = createFileStream(req)
 
-  let fileStreamToUpload : FileStreamToUpload = {
-    stream: fileStream,
-    fileNameWithExtension: req.params.file_name,
-    fileName: original_file_name_splitted[0],
-    fileExtension: original_file_name_splitted[1],
-    contentType: contentType
-  }
+  req.pipe(sizeStream)
+  req.pipe(fileStreamObject.stream)
 
   let uploadPromise =
-    fileStreamToUpload.contentType.includes('image') ? processImage(fileStreamToUpload) : processFile(fileStreamToUpload)
+    fileStreamObject.contentType.includes('image') ? processImage(fileStreamObject) : processFile(fileStreamObject)
 
   uploadPromise.then((file) => {
     res.writeHead(200, {"content-type":"text/html"})

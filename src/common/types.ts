@@ -1,7 +1,7 @@
-import { Readable } from 'stream'
+import { PassThrough } from 'stream'
 
 export interface FileStreamToUpload {
-  stream: Readable,
+  stream: PassThrough,
   fileNameWithExtension: string,
   fileName: string,
   fileExtension: string,

@@ -1,4 +1,5 @@
 import stream from 'stream';
+import express from 'express';
 import { PassThrough, Readable } from 'stream';
 import AWS from 'aws-sdk';
 import { FileStreamToUpload } from './common/types'
@@ -83,4 +84,20 @@ export function createSizeStream(fileStream: Readable, cb: Function): PassThroug
   })
 
   return sizeStream
+}
+
+export function createFileStream(req: express.Request): FileStreamToUpload {
+  let fileStream = new PassThrough()
+  let original_file_name_splitted = req.params.file_name.split('.')
+  let contentType = req.get('Content-Type') || ''
+
+  let fileStreamToUpload : FileStreamToUpload = {
+    stream: fileStream,
+    fileNameWithExtension: req.params.file_name,
+    fileName: original_file_name_splitted[0],
+    fileExtension: original_file_name_splitted[1],
+    contentType: contentType
+  }
+
+  return fileStreamToUpload
 }
