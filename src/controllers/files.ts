@@ -1,5 +1,5 @@
 import express from 'express';
-import { processImage, processFile, createSizeStream, createFileStream } from '../utils'
+import { processImage, processFile, createSizeStream, createFileStream } from '../utils/file_processing'
 import { AVAILABLE_EXTENSIONS } from '../common/constants'
 
 export async function uploadFile (req: express.Request, res: express.Response): Promise<any> {
